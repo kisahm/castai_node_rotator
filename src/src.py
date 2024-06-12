@@ -9,6 +9,52 @@ from kubernetes.client.rest import ApiException
 DELAY_AFTER_READY = int(os.getenv("DELAY_AFTER_READY", 10))
 
 
+from kubernetes import client, config
+from kubernetes.client import CoreV1Event, V1ObjectReference, V1EventSource
+
+import uuid
+
+
+def create_kubernetes_event(v1, kind, name, namespace, reason, message, component=None, type="Normal"):
+    """
+    Create a Kubernetes event for a given resource (node or pod).
+
+    Args:
+        kind (str): The kind of resource (e.g., "Node" or "Pod").
+        name (str): The name of the resource.
+        namespace (str): The namespace of the resource.
+        reason (str): The reason for the event.
+        message (str): The message for the event.
+        component (str, optional): The component that generated the event.
+        type (str, optional): The type of event (e.g., "Normal" or "Warning"). Defaults to "Normal".
+
+    Returns:
+        V1Event: The created event object.
+    """
+
+    # Generate a unique name for the event using uuid
+    event_name = str(uuid.uuid4())
+
+    event = CoreV1Event(
+        metadata=client.V1ObjectMeta(name=event_name, namespace=namespace),
+        involved_object=V1ObjectReference(
+            kind=kind,
+            name=name,
+            namespace=namespace
+        ),
+        reason=reason,
+        message=message,
+        type=type,
+        source=V1EventSource(component=component) if component else None
+    )
+
+    try:
+        response = v1.create_namespaced_event(namespace, event)
+        return response
+    except client.rest.ApiException as e:
+        print(f"Exception when calling CoreV1Api->create_namespaced_event: {e}")
+
+
 def load_config():
     print("Loading Kubernetes configuration...")
     try:
@@ -124,12 +170,15 @@ def main():
     nodes = get_cast_ai_nodes(v1)
     for node in nodes:
         node_name = node.metadata.name
+        create_kubernetes_event(v1, "Node", node_name, "castai-agent", "CastNodeRotaion", "Node cordon init")
         cordon_node(v1, node_name)
         kind, name, namespace, controller_pods = check_controller_replicas(v1, node_name)
         if kind and name and namespace and controller_pods:
             evict_pod(v1, controller_pods[0])
             wait_for_pod_health(v1, controller_pods[1:])
+        create_kubernetes_event(v1, "Node", node_name, "castai-agent", "CastNodeRotaion", "Node Drain start")
         drain_node(v1, node_name)
+        create_kubernetes_event(v1, "Node", node_name, "castai-agent", "CastNodeRotaion", "Node Drain Completed")
         print(f"Node {node_name} drained successfully.")
 
 

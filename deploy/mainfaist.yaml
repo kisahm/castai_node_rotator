@@ -1,0 +1,80 @@
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: castai-node-drainer
+  namespace: castai-agent
+spec:
+  schedule: "0 0 * * 0" 
+  successfulJobsHistoryLimit: 10
+  failedJobsHistoryLimit: 10
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: castai-node-drainer
+          restartPolicy: Never
+          containers:
+          - name: castai-node-drainer
+            image: ronakpatildocker/castai-node-rotate:latest
+            command: [python, src.py]
+            resources:
+              limits:
+                memory: 100Mi
+              requests:
+                cpu: 50m
+                memory: 100Mi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: castai-node-drainer
+  namespace: castai-agent
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: castai-node-drainer
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - namespaces
+  verbs:
+  - list
+  - delete  # Added the 'delete' verb for pods
+- apiGroups:
+  - "apps"
+  resources:
+  - pods/eviction
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - watch
+  - list
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: castai-node-drainer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: castai-node-drainer
+subjects:
+- kind: ServiceAccount
+  name: castai-node-drainer
+  namespace: castai-agent
