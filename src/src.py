@@ -205,7 +205,7 @@ def wait_for_new_replica(v1: CoreV1Api, controller_name: str, namespace: str) ->
 def drain_node(v1: CoreV1Api, node_name: str) -> None:
     try:
         logging.info(f"Draining node: {node_name}...")
-        command = ["kubectl", "drain", node_name, "--ignore-daemonsets", "--delete-local-data"]
+        command = ["kubectl", "drain", node_name, "--ignore-daemonsets", "--delete-emptydir-data"]
         result = subprocess.run(command, check=True, text=True, capture_output=True)
         logging.info(f"{result}.")
         logging.info(f"Node {node_name} drained.")
