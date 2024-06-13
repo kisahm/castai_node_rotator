@@ -297,6 +297,9 @@ def main() -> None:
         logging.info(f"Processing cronjob node {cron_job_node_name}")
         process_node(v1, cron_job_node_name)
 
+    logging.info("Node rotation completed successfully.")
+    exit(0)
+
 
 if __name__ == "__main__":
     main()
