@@ -1,0 +1,14 @@
+cronjob:
+  schedule: "0 0 * * 0"
+  successfulJobsHistoryLimit: 10
+  failedJobsHistoryLimit: 10
+
+container:
+  image: ronakpatildocker/castai-node-rotate
+  tag: latest
+  resources:
+    limits:
+      memory: 100Mi
+    requests:
+      cpu: 50m
+      memory: 100Mi

@@ -1,0 +1,27 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: castai-node-drainer
+  namespace: castai-agent
+spec:
+  schedule: "{{ .Values.cronjob.schedule }}"
+  successfulJobsHistoryLimit: {{ .Values.cronjob.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.cronjob.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          serviceAccountName: castai-node-drainer
+          restartPolicy: Never
+          terminationGracePeriodSeconds: 60
+          containers:
+          - name: castai-node-drainer
+            image: "{{ .Values.container.image }}:{{ .Values.container.tag }}"
+            command: [python, src.py]
+            resources:
+              limits:
+                memory: "{{ .Values.container.resources.limits.memory }}"
+              requests:
+                cpu: "{{ .Values.container.resources.requests.cpu }}"
+                memory: "{{ .Values.container.resources.requests.memory }}"
