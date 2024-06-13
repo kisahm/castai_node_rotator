@@ -10,10 +10,12 @@ spec:
   failedJobsHistoryLimit: 10
   jobTemplate:
     spec:
+      backoffLimit: 0
       template:
         spec:
           serviceAccountName: castai-node-drainer
           restartPolicy: Never
+          terminationGracePeriodSeconds: 60
           containers:
           - name: castai-node-drainer
             image: ronakpatildocker/castai-node-rotate:latest
@@ -31,40 +33,52 @@ metadata:
   name: castai-node-drainer
   namespace: castai-agent
 ---
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: ClusterRole
+# metadata:
+#   name: castai-node-drainer
+# rules:
+# - apiGroups:
+#   - ""
+#   resources:
+#   - events
+#   verbs:
+#   - create
+# - apiGroups:
+#   - ""
+#   resources:
+#   - pods
+#   - namespaces
+#   verbs:
+#   - list
+#   - delete  # Added the 'delete' verb for pods
+# - apiGroups:
+#   - "apps"
+#   resources:
+#   - pods/eviction
+#   verbs:
+#   - create
+# - apiGroups:
+#   - ""
+#   resources:
+#   - nodes
+#   verbs:
+#   - get
+#   - watch
+#   - list
+#   - patch
+# ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: castai-node-drainer
 rules:
 - apiGroups:
-  - ""
+  - "*"
   resources:
-  - events
+  - "*"
   verbs:
-  - create
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  - namespaces
-  verbs:
-  - list
-  - delete  # Added the 'delete' verb for pods
-- apiGroups:
-  - "apps"
-  resources:
-  - pods/eviction
-  verbs:
-  - create
-- apiGroups:
-  - ""
-  resources:
-  - nodes
-  verbs:
-  - get
-  - watch
-  - list
-  - patch
+  - "*"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
