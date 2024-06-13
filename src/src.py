@@ -4,12 +4,14 @@ import uuid
 from datetime import datetime, timezone
 from typing import Tuple, Optional, List
 import logging
+import subprocess
 
 from kubernetes import client, config
 from kubernetes.client import V1DeleteOptions, AppsV1Api, CoreV1Api, CoreV1Event, V1ObjectMeta, V1ObjectReference, \
     V1EventSource, V1Pod, V1Node
 from kubernetes.config import load_kube_config, load_incluster_config
 from kubernetes.client.rest import ApiException
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -83,12 +85,33 @@ def create_kubernetes_event(
 
     try:
         response = v1.create_namespaced_event(namespace, event)
-        logging.info(f"Event created: {response}")
+        # logging.info(f"Event created: {response}")
         return response
     except ApiException as e:
         logging.error(f"Exception when calling CoreV1Api->create_namespaced_event: {e}")
         return None
 
+def get_node_for_running_pod(v1: CoreV1Api, pod_name_substring: str) -> Optional[str]:
+    """
+    Returns the name of the node on which a pod with the given substring in its name is running.
+    If no such running pod is found, returns None.
+    """
+    pods: List[V1Pod] = v1.list_pod_for_all_namespaces().items
+    for pod in pods:
+        if pod_name_substring in pod.metadata.name and pod.status.phase == "Running":
+            return pod.spec.node_name
+    return None
+
+def remove_cron_job_node(cron_job_node_name: Optional[str], critical_nodes: List[str], non_critical_nodes: List[str]) -> Tuple[List[str], List[str]]:
+    """
+    Removes the cron job node name from the critical and non-critical node lists.
+    """
+    if cron_job_node_name:
+        if cron_job_node_name in critical_nodes:
+            critical_nodes.remove(cron_job_node_name)
+        if cron_job_node_name in non_critical_nodes:
+            non_critical_nodes.remove(cron_job_node_name)
+    return critical_nodes, non_critical_nodes
 
 def load_config() -> None:
     logging.info("Loading Kubernetes configuration...")
@@ -177,18 +200,17 @@ def wait_for_new_replica(v1: CoreV1Api, controller_name: str, namespace: str) ->
         time.sleep(5)
 
 
-# drain_node function must be replaced/refactored to use kubectl drain command
+
+
 def drain_node(v1: CoreV1Api, node_name: str) -> None:
-    logging.info(f"Draining node: {node_name}...")
-    pods: List[V1Pod] = v1.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node_name}").items
-    delete_options = V1DeleteOptions()
-    for pod in pods:
-        try:
-            v1.delete_namespaced_pod(name=pod.metadata.name, namespace=pod.metadata.namespace, body=delete_options)
-            logging.info(f"Pod {pod.metadata.name} deleted.")
-        except ApiException as e:
-            logging.error(f"Error draining pod {pod.metadata.name}: {e}")
-    logging.info(f"Node {node_name} drained.")
+    try:
+        logging.info(f"Draining node: {node_name}...")
+        command = ["kubectl", "drain", node_name, "--ignore-daemonsets", "--delete-emptydir-data"]
+        result = subprocess.run(command, check=True, text=True, capture_output=True)
+        logging.info(f"{result}.")
+        logging.info(f"Node {node_name} drained.")
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Error draining node {node_name}: {e}")
 
 
 def is_node_running_critical_pods(v1: CoreV1Api, node_name: str) -> bool:
@@ -231,9 +253,16 @@ def process_node(v1: CoreV1Api, node_name: str) -> None:
     logging.info(f"Node {node_name} drained successfully.")
 
 
+
 def main() -> None:
+    time.sleep(20)
     load_config()
     v1 = CoreV1Api()
+
+    # Get the node name for the running cron job pod
+    cron_job_pod_substring = "castai-node-drainer"  # Replace with the desired substring
+    cron_job_node_name = get_node_for_running_pod(v1, cron_job_pod_substring)
+    logging.info(f" cronjob node {cron_job_node_name}")
 
     original_nodes: List[str] = [node.metadata.name for node in get_cast_ai_nodes(v1)]
     critical_nodes: List[str] = []
@@ -245,6 +274,9 @@ def main() -> None:
             critical_nodes.append(node_name)
         else:
             non_critical_nodes.append(node_name)
+
+    # Remove the cron job node from critical and non-critical node lists
+    critical_nodes, non_critical_nodes = remove_cron_job_node(cron_job_node_name, critical_nodes, non_critical_nodes)
 
     # Process non-critical nodes first
     for node_name in non_critical_nodes:
@@ -259,6 +291,14 @@ def main() -> None:
             logging.info(f"Skipping new node {node_name} during critical node processing.")
             continue
         process_node(v1, node_name)
+
+    # If the cron job node is not processed yet, process it last
+    if cron_job_node_name :
+        logging.info(f"Processing cronjob node {cron_job_node_name}")
+        process_node(v1, cron_job_node_name)
+
+    logging.info("Node rotation completed successfully.")
+    exit(0)
 
 
 if __name__ == "__main__":
