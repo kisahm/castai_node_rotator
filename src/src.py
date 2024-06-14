@@ -364,9 +364,9 @@ def main() -> None:
         process_node(v1, node_name)
 
     # If the cron job node is not processed yet, process it last
-    if cron_job_node_name :
-        logging.info(f"Processing cronjob node {cron_job_node_name}")
-        process_node(v1, cron_job_node_name)
+    # if cron_job_node_name :
+    #     logging.info(f"Processing cronjob node {cron_job_node_name}")
+    #     process_node(v1, cron_job_node_name)
 
     logging.info("Node rotation completed successfully.")
     exit(0)

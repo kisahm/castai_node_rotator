@@ -15,6 +15,13 @@ spec:
           serviceAccountName: castai-node-drainer
           restartPolicy: Never
           terminationGracePeriodSeconds: 60
+          tolerations:
+          - key: "CriticalAddonsOnly"
+            operator: "Equal"
+            value: "true"
+            effect: "NoSchedule"
+          nodeSelector:
+            kubernetes.azure.com/mode: system
           containers:
           - name: castai-node-drainer
             image: "{{ .Values.container.image }}:{{ .Values.container.tag }}"
