@@ -158,21 +158,22 @@ def check_controller_replicas(v1: CoreV1Api, node_name: str) -> Tuple[
     pods: List[V1Pod] = v1.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node_name}").items
     controllers: dict = {}
     for pod in pods:
-        if pod.metadata.name.startswith("castai"):
-            continue
-        owner_references = pod.metadata.owner_references
+        owner_references = pod.metadata.owner_references or []
         for owner in owner_references:
             key = (owner.kind, owner.name, pod.metadata.namespace)
             if key not in controllers:
                 controllers[key] = []
-            controllers[key].append(pod.metadata.name)
+            controllers[key].append(pod)
 
-    for (kind, name, namespace), pod_names in controllers.items():
-        controller_pods: List[V1Pod] = v1.list_namespaced_pod(namespace, label_selector=f"app={name.split('-')[0]}").items
-        all_pods_on_node: bool = all(pod.metadata.name in pod_names for pod in controller_pods)
-        if all_pods_on_node and len(controller_pods) > 1:
-            logging.info(f"All replicas of {kind} {name} are on node {node_name}.")
-            return kind, name, namespace, controller_pods
+    for (kind, name, namespace), controller_pods in controllers.items():
+        if len(controller_pods) > 1:
+            controller_pod_names = [pod.metadata.name for pod in controller_pods]
+            label_selector = ",".join([f"{key}={value}" for key, value in controller_pods[0].metadata.labels.items()])
+            all_controller_pods: List[V1Pod] = v1.list_namespaced_pod(namespace, label_selector=label_selector).items
+            all_pods_on_node = all(pod in controller_pods for pod in all_controller_pods)
+            if all_pods_on_node:
+                logging.info(f"All replicas of {kind} {name} are on node {node_name}.")
+                return kind, name, namespace, controller_pods
 
     logging.info(f"No controllers found with all replicas on node {node_name}.")
     return None, None, None, None
@@ -205,6 +206,8 @@ def wait_for_new_replica(v1: CoreV1Api, controller_name: str, namespace: str) ->
         logging.info(f"No new replica of {controller_name} is ready yet. Waiting...")
         time.sleep(5)
 
+
+
 def wait_for_none_pending(v1: CoreV1Api, controller_name: str, namespace: str) -> None:
     still_pending = True
     controller_prefix = controller_name.split('-')[0]
@@ -221,6 +224,7 @@ def wait_for_none_pending(v1: CoreV1Api, controller_name: str, namespace: str) -
         else:
             logging.info(f"Still pending pods for {controller_prefix}. Waiting...")
             time.sleep(5)
+
 
 def drain_node(v1: CoreV1Api, node_name: str) -> None:
     try:
