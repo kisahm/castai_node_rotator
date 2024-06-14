@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from typing import Tuple, Optional, List
 import logging
 import subprocess
+import signal
+import sys
 
 from kubernetes import client, config
 from kubernetes.client import V1DeleteOptions, AppsV1Api, CoreV1Api, CoreV1Event, V1ObjectMeta, V1ObjectReference, \
@@ -12,12 +14,18 @@ from kubernetes.client import V1DeleteOptions, AppsV1Api, CoreV1Api, CoreV1Event
 from kubernetes.config import load_kube_config, load_incluster_config
 from kubernetes.client.rest import ApiException
 
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging with timestamp information
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Load the delay time from an environment variable or use the default value
 DELAY_AFTER_READY: int = int(os.getenv("DELAY_AFTER_READY", 10))
+
+def handle_sigterm(signum, frame):
+    logging.info("Received SIGTERM. Exiting gracefully...")
+    sys.exit(0)
+
+# Register the signal handler for SIGTERM
+signal.signal(signal.SIGTERM, handle_sigterm)
 
 # Define labels or names for CastAI critical pods, either from an environment variable or a default list
 CRITICAL_WORKLOADS: List[str] = os.getenv(
@@ -160,8 +168,7 @@ def check_controller_replicas(v1: CoreV1Api, node_name: str) -> Tuple[
             controllers[key].append(pod.metadata.name)
 
     for (kind, name, namespace), pod_names in controllers.items():
-        controller_pods: List[V1Pod] = v1.list_namespaced_pod(namespace,
-                                                              label_selector=f"app={name.split('-')[0]}").items
+        controller_pods: List[V1Pod] = v1.list_namespaced_pod(namespace, label_selector=f"app={name.split('-')[0]}").items
         all_pods_on_node: bool = all(pod.metadata.name in pod_names for pod in controller_pods)
         if all_pods_on_node and len(controller_pods) > 1:
             logging.info(f"All replicas of {kind} {name} are on node {node_name}.")
@@ -185,12 +192,11 @@ def evict_pod(v1: CoreV1Api, pod: V1Pod) -> None:
         else:
             logging.error(f"Error evicting pod {pod_name}: {e}")
 
-
+# Not used for now
 def wait_for_new_replica(v1: CoreV1Api, controller_name: str, namespace: str) -> None:
     logging.info(f"Waiting for a new replica of {controller_name} to become ready...")
     while True:
-        pods: List[V1Pod] = v1.list_namespaced_pod(namespace,
-                                                   label_selector=f"app={controller_name.split('-')[0]}").items
+        pods: List[V1Pod] = v1.list_namespaced_pod(namespace, label_selector=f"app={controller_name.split('-')[0]}").items
         ready_pods = [pod for pod in pods if pod.status.phase == "Running" and any(
             condition.type == "Ready" and condition.status == "True" for condition in pod.status.conditions)]
         if len(ready_pods) > 0:
@@ -199,8 +205,22 @@ def wait_for_new_replica(v1: CoreV1Api, controller_name: str, namespace: str) ->
         logging.info(f"No new replica of {controller_name} is ready yet. Waiting...")
         time.sleep(5)
 
+def wait_for_none_pending(v1: CoreV1Api, controller_name: str, namespace: str) -> None:
+    still_pending = True
+    controller_prefix = controller_name.split('-')[0]
 
-
+    while still_pending:
+        pending_pods = v1.list_namespaced_pod(
+            namespace=namespace,
+            field_selector="status.phase=Pending",
+            label_selector=f"app={controller_prefix}"
+        ).items
+        if len(pending_pods) == 0:
+            logging.info(f"No more pending pods for {controller_prefix}.")
+            still_pending = False
+        else:
+            logging.info(f"Still pending pods for {controller_prefix}. Waiting...")
+            time.sleep(5)
 
 def drain_node(v1: CoreV1Api, node_name: str) -> None:
     try:
@@ -222,10 +242,10 @@ def is_node_running_critical_pods(v1: CoreV1Api, node_name: str) -> bool:
                 return True
     return False
 
-
 def wait_for_new_nodes(v1: CoreV1Api, original_nodes: List[str]) -> List[str]:
+    total_wait_cycles = os.getenv("TOTAL_WAIT_CYCLES", 18)
     logging.info("Waiting for new nodes to become ready...")
-    while True:
+    while total_wait_cycles > 0:
         nodes: List[V1Node] = v1.list_node().items
         new_nodes = [node.metadata.name for node in nodes if node.metadata.name not in original_nodes]
         ready_new_nodes = [node for node in nodes if node.metadata.name in new_nodes and all(
@@ -235,27 +255,52 @@ def wait_for_new_nodes(v1: CoreV1Api, original_nodes: List[str]) -> List[str]:
                 f"Found {len(ready_new_nodes)} new ready nodes, which meets the required {MIN_READY_NODES} new ready nodes.")
             return [node.metadata.name for node in ready_new_nodes]
         logging.info(f"Currently {len(ready_new_nodes)} new ready nodes. Waiting for new nodes to be ready...")
+        total_wait_cycles -= 1 # decrement the total_wait_cycles
         time.sleep(10)
 
 
 def process_node(v1: CoreV1Api, node_name: str) -> None:
+    logging.info(f"Processing node: {node_name}...")
+
     create_kubernetes_event(v1, "Node", node_name, "default", "CastNodeRotation", "Node cordon init", "castai-agent")
     cordon_node(v1, node_name)
-    kind, name, namespace, controller_pods = check_controller_replicas(v1, node_name)
-    if kind and name and namespace and controller_pods:
-        for pod in controller_pods:
+
+    # The check_controller_replicas function is used to identify if all replicas of a controller 
+    # are running on a single node. It returns the controller’s kind, name, namespace, and the 
+    # list of pods if such a controller is found. If no such controller is found, it returns None values. 
+    # This function is useful for scenarios where you need to ensure that controller replicas are 
+    # distributed across different nodes to avoid single points of failure.
+    while True:
+        kind, name, namespace, controller_pods = check_controller_replicas(v1, node_name)
+        if kind and name and namespace and controller_pods:
+            # we want to evict the first pod in the list of controller_pods (not all of them)
+            pod = controller_pods[0]
+            logging.info(f"about to evict pod {pod.metadata.name} from namespace {namespace}")
             evict_pod(v1, pod)
-            wait_for_new_replica(v1, name, namespace)
+            wait_for_none_pending(v1, name, namespace)
+        else:
+            logging.info(f"Breaking from check controllers loop.")
+            break
+
     create_kubernetes_event(v1, "Node", node_name, "default", "CastNodeRotation", "Node drain start", "castai-agent")
     drain_node(v1, node_name)
-    create_kubernetes_event(v1, "Node", node_name, "default", "CastNodeRotation", "Node drain completed",
-                            "castai-agent")
+    create_kubernetes_event(v1, "Node", node_name, "default", "CastNodeRotation", "Node drain completed", "castai-agent")
     logging.info(f"Node {node_name} drained successfully.")
 
 
 
 def main() -> None:
-    time.sleep(20)
+    logging.info("************************************************")
+    logging.info("Starting node rotator...")
+    logging.info("************************************************")
+
+    # check an environment variable for startup sleep time, default 20 seconds
+    startup_sleep_time = int(os.getenv("STARTUP_SLEEP_TIME", 20))
+    delay_wait_pending_pods = int(os.getenv("DELAY_WAIT_PENDING_PODS", 20))
+
+    logging.info(f"Sleeping for {startup_sleep_time} seconds before starting node rotation.")
+    time.sleep(startup_sleep_time)
+
     load_config()
     v1 = CoreV1Api()
 
@@ -268,6 +313,8 @@ def main() -> None:
     critical_nodes: List[str] = []
     non_critical_nodes: List[str] = []
 
+    logging.info(f"CAST AI Managed nodes: {original_nodes}")
+
     # Separate critical and non-critical nodes
     for node_name in original_nodes:
         if is_node_running_critical_pods(v1, node_name):
@@ -275,15 +322,35 @@ def main() -> None:
         else:
             non_critical_nodes.append(node_name)
 
-    # Remove the cron job node from critical and non-critical node lists
+    # Remove the cron job node from critical and non-critical node lists, as the cron job node should be processed last
     critical_nodes, non_critical_nodes = remove_cron_job_node(cron_job_node_name, critical_nodes, non_critical_nodes)
+
+    logging.info(f"Critical nodes: {critical_nodes}")
+    logging.info(f"Non-critical nodes: {non_critical_nodes}")
 
     # Process non-critical nodes first
     for node_name in non_critical_nodes:
         process_node(v1, node_name)
 
-    # Wait for new nodes to be ready before processing critical nodes
-    new_nodes = wait_for_new_nodes(v1, original_nodes)
+    #logging.info("Pausing just after processing non-critical nodes...")
+    #input()
+    time.sleep(delay_wait_pending_pods)
+
+    # Check for Pending pods to determine if we need to wait for new nodes
+    pending_pods = v1.list_pod_for_all_namespaces(field_selector="status.phase=Pending").items
+    # iterate through pendiing_pods and log the name
+    for pod in pending_pods:
+        logging.info(f"Pending pod: {pod.metadata.name}")
+    
+    new_nodes = [] # List of new nodes that have become ready
+    if len(pending_pods) > 0:
+        logging.info(f"Found {len(pending_pods)} Pending pods. Waiting for new nodes to be ready...")
+        # Wait for new nodes to be ready before processing critical nodes
+        new_nodes = wait_for_new_nodes(v1, original_nodes)
+    else:
+        logging.info("No Pending pods found. Continuing.")
+
+    logging.info(f"Processing critical nodes... {critical_nodes}")
 
     # Process critical nodes last
     for node_name in critical_nodes:
