@@ -6,6 +6,7 @@ metadata:
   namespace: castai-agent
 spec:
   schedule: "0 0 * * 0" 
+  timeZone: Etc/UTC
   successfulJobsHistoryLimit: 10
   failedJobsHistoryLimit: 10
   jobTemplate:
@@ -27,12 +28,25 @@ spec:
           - name: castai-node-drainer
             image: ronakpatildocker/castai-node-rotate:latest
             command: [python, src.py]
+            env:
+            - name: DELAY_AFTER_READY
+              value: "20"
+            - name: CRITICAL_WORKLOADS
+              value: "app.kubernetes.io/name=castai-agent,app.kubernetes.io/name=castai-cluster-controller,app.kubernetes.io/name=another-critical-pod"
+            - name: MIN_READY_NODES
+              value: "2"
+            - name: TOTAL_WAIT_CYCLES
+              value: "25"
+            - name: STARTUP_SLEEP_TIME
+              value: "30"
+            - name: DELAY_WAIT_PENDING_PODS
+              value: "30"
             resources:
               limits:
-                memory: 100Mi
+                memory: 500Mi
               requests:
                 cpu: 50m
-                memory: 100Mi
+                memory: 500Mi
 ---
 apiVersion: v1
 kind: ServiceAccount

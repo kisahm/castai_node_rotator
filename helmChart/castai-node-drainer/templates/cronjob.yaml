@@ -5,6 +5,7 @@ metadata:
   namespace: castai-agent
 spec:
   schedule: "{{ .Values.cronjob.schedule }}"
+  timeZone: "{{ .Values.cronjob.timeZone }}"
   successfulJobsHistoryLimit: {{ .Values.cronjob.successfulJobsHistoryLimit }}
   failedJobsHistoryLimit: {{ .Values.cronjob.failedJobsHistoryLimit }}
   jobTemplate:
@@ -26,6 +27,19 @@ spec:
           - name: castai-node-drainer
             image: "{{ .Values.container.image }}:{{ .Values.container.tag }}"
             command: [python, src.py]
+            env:
+            - name: DELAY_AFTER_READY
+              value: "{{ .Values.env.DELAY_AFTER_READY }}"
+            - name: CRITICAL_WORKLOADS
+              value: "{{ .Values.env.CRITICAL_WORKLOADS }}"
+            - name: MIN_READY_NODES
+              value: "{{ .Values.env.MIN_READY_NODES }}"
+            - name: TOTAL_WAIT_CYCLES
+              value: "{{ .Values.env.TOTAL_WAIT_CYCLES }}"
+            - name: STARTUP_SLEEP_TIME
+              value: "{{ .Values.env.STARTUP_SLEEP_TIME }}"
+            - name: DELAY_WAIT_PENDING_PODS
+              value: "{{ .Values.env.DELAY_WAIT_PENDING_PODS }}"
             resources:
               limits:
                 memory: "{{ .Values.container.resources.limits.memory }}"
