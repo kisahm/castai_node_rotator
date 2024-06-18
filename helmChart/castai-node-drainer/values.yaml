@@ -1,14 +1,43 @@
+# CronJob configuration
 cronjob:
+  # The schedule in cron format, this will run the job every Sunday at 00:00 (midnight)
   schedule: "0 0 * * 0"
+  # The timezone to use for the cronjob schedule
+  timeZone: Etc/UTC
+  # timezone identifier - https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+
+  # The number of successful job objects to keep in the cluster
   successfulJobsHistoryLimit: 10
+  # The number of failed job objects to keep in the cluster
   failedJobsHistoryLimit: 10
 
+# Container configuration
 container:
+  # The container image to use
   image: ronakpatildocker/castai-node-rotate
+  # The tag of the container image
   tag: latest
+  # Resource limits and requests for the container
   resources:
+    # Memory limit for the container
     limits:
       memory: 100Mi
+    # CPU and memory requests for the container
     requests:
       cpu: 50m
       memory: 100Mi
+
+# Environment variables for the container
+env:
+  # The delay in seconds after a pod is ready before performing any action
+  DELAY_AFTER_READY: "10"
+  # A comma-separated list of Kubernetes labels or names for CastAI critical pods
+  CRITICAL_WORKLOADS: "app.kubernetes.io/name=castai-agent,app.kubernetes.io/name=castai-cluster-controller"
+  # The minimum number of ready nodes required before draining critical nodes
+  MIN_READY_NODES: "1"
+  # The total number of cycles to wait for new nodes to become ready
+  TOTAL_WAIT_CYCLES: "18"
+  # The time in seconds to sleep before starting node rotation
+  STARTUP_SLEEP_TIME: "30"
+  # The time in seconds to delay after processing non-critical nodes and before processing critical nodes
+  DELAY_WAIT_PENDING_PODS: "20"
