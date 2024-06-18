@@ -287,7 +287,7 @@ def is_node_running_critical_pods(v1: CoreV1Api, node_name: str) -> bool:
 def wait_for_new_nodes(v1: CoreV1Api, original_nodes: List[str]) -> List[str]:
     total_wait_cycles = os.getenv("TOTAL_WAIT_CYCLES", 18)
     logging.info("Waiting for new nodes to become ready...")
-    while total_wait_cycles > 0:
+    while int(total_wait_cycles) > 0:
         nodes: List[V1Node] = v1.list_node().items
         new_nodes = [node.metadata.name for node in nodes if node.metadata.name not in original_nodes]
         ready_new_nodes = [node for node in nodes if node.metadata.name in new_nodes and all(
