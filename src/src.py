@@ -225,6 +225,7 @@ def wait_for_none_pending(v1, controller_name, namespace):
             
             pending_pods = []
             for pod in pods:
+                # print(pod.status.phase, pod.metadata.name)
                 if pod.metadata.owner_references:
                     for owner_ref in pod.metadata.owner_references:
                         if owner_ref.name == controller_name:
@@ -318,6 +319,7 @@ def process_node(v1: CoreV1Api, node_name: str) -> None:
             pod = controller_pods[0]
             logging.info(f"about to evict pod {pod.metadata.name} from namespace {namespace}")
             evict_pod(v1, pod)
+            time.sleep(5) #delay before getting pod status to avoid false pod status check
             wait_for_none_pending(v1, name, namespace)
         else:
             logging.info(f"Breaking from check controllers loop.")
