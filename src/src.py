@@ -207,23 +207,60 @@ def wait_for_new_replica(v1: CoreV1Api, controller_name: str, namespace: str) ->
         time.sleep(5)
 
 
+import time
 
-def wait_for_none_pending(v1: CoreV1Api, controller_name: str, namespace: str) -> None:
-    still_pending = True
-    controller_prefix = controller_name.split('-')[0]
+def wait_for_none_pending(v1, controller_name, namespace):
+    """
+    Wait until all pods owned by the specified controller in the namespace
+    are no longer in a pending state.
+    
+    Parameters:
+    - v1 (kubernetes.client.CoreV1Api): Kubernetes CoreV1Api instance
+    - controller_name (str): Name of the controller whose pods we are waiting for
+    - namespace (str): Namespace of the controller and pods
+    """
+    while True:
+        try:
+            pods = v1.list_namespaced_pod(namespace).items
+            
+            pending_pods = []
+            for pod in pods:
+                if pod.metadata.owner_references:
+                    for owner_ref in pod.metadata.owner_references:
+                        if owner_ref.name == controller_name:
+                            if pod.status.phase == "Pending":
+                                pending_pods.append(pod)
+            
+            if not pending_pods:
+                logging.info(f"All pods for controller {controller_name} in namespace {namespace} are ready.")
+                break
+            else:
+                logging.info(f"Waiting for pods for controller {controller_name} in namespace {namespace} to be ready...")
+                time.sleep(5)  # Adjust the sleep interval as needed
+            
+        except Exception as e:
+            logging.error(f"Error occurred while waiting for pods: {str(e)}")
+            time.sleep(5)  # Retry after a short delay on error
 
-    while still_pending:
-        pending_pods = v1.list_namespaced_pod(
-            namespace=namespace,
-            field_selector="status.phase=Pending",
-            label_selector=f"app={controller_prefix}"
-        ).items
-        if len(pending_pods) == 0:
-            logging.info(f"No more pending pods for {controller_prefix}.")
-            still_pending = False
-        else:
-            logging.info(f"Still pending pods for {controller_prefix}. Waiting...")
-            time.sleep(5)
+
+# def wait_for_none_pending(v1: CoreV1Api, controller_name: str, namespace: str) -> None:
+#     still_pending = True
+#     # controller_prefix = controller_name.split('-')[0]
+#     controller_prefix = "-".join(controller_name.split('-')[:-1])
+
+
+#     while still_pending:
+#         pending_pods = v1.list_namespaced_pod(
+#             namespace=namespace,
+#             field_selector="status.phase=Pending",
+#             label_selector=f"app={controller_prefix}"
+#         ).items
+#         if len(pending_pods) == 0:
+#             logging.info(f"No more pending pods for {controller_prefix}.")
+#             still_pending = False
+#         else:
+#             logging.info(f"Still pending pods for {controller_prefix}. Waiting...")
+#             time.sleep(5)
 
 
 def drain_node(v1: CoreV1Api, node_name: str) -> None:
