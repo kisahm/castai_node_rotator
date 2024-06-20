@@ -244,26 +244,6 @@ def wait_for_none_pending(v1, controller_name, namespace):
             time.sleep(5)  # Retry after a short delay on error
 
 
-# def wait_for_none_pending(v1: CoreV1Api, controller_name: str, namespace: str) -> None:
-#     still_pending = True
-#     # controller_prefix = controller_name.split('-')[0]
-#     controller_prefix = "-".join(controller_name.split('-')[:-1])
-
-
-#     while still_pending:
-#         pending_pods = v1.list_namespaced_pod(
-#             namespace=namespace,
-#             field_selector="status.phase=Pending",
-#             label_selector=f"app={controller_prefix}"
-#         ).items
-#         if len(pending_pods) == 0:
-#             logging.info(f"No more pending pods for {controller_prefix}.")
-#             still_pending = False
-#         else:
-#             logging.info(f"Still pending pods for {controller_prefix}. Waiting...")
-#             time.sleep(5)
-
-
 def drain_node(v1: CoreV1Api, node_name: str) -> None:
     try:
         logging.info(f"Draining node: {node_name}...")
