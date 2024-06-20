@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 from datetime import datetime, timezone
 from typing import Tuple, Optional, List
@@ -18,28 +19,33 @@ import sig_utils
 # Register the signal handler for SIGTERM
 signal.signal(signal.SIGTERM, sig_utils.handle_sigterm)
 
+
 def process_node(v1: CoreV1Api, node_name: str) -> None:
     logging.info(f"Processing node: {node_name}...")
 
-    k8s_events.create_kubernetes_event(v1, "Node", node_name, "default", "CastNodeRotation", "Node cordon init", "castai-agent")
+    k8s_events.create_kubernetes_event(v1, "Node", node_name, "default", "CastNodeRotation", "Node cordon init",
+                                       "castai-agent")
     node_utils.cordon_node(v1, node_name)
 
     while True:
-        kind, name, namespace, controller_pods = pod_utils.check_controller_replicas(v1, node_name) #check if any controller is "all in" on the node
+        kind, name, namespace, controller_pods = pod_utils.check_controller_replicas(v1,
+                                                                                     node_name)  # check if any controller is "all in" on the node
         if kind and name and namespace and controller_pods:
             # we want to evict the first pod in the list of controller_pods (not all of them)
             pod = controller_pods[0]
             logging.info(f"about to evict pod {pod.metadata.name} from namespace {namespace}")
             pod_utils.evict_pod(v1, pod)
-            time.sleep(5) #delay before getting pod status to avoid false pod status check
+            time.sleep(5)  # delay before getting pod status to avoid false pod status check
             pod_utils.wait_for_none_pending(v1, name, namespace)
         else:
             logging.info(f"Breaking from check controllers loop.")
             break
 
-    k8s_events.create_kubernetes_event(v1, "Node", node_name, "default", "CastNodeRotation", "Node drain start", "castai-agent")
+    k8s_events.create_kubernetes_event(v1, "Node", node_name, "default", "CastNodeRotation", "Node drain start",
+                                       "castai-agent")
     node_utils.drain_node(v1, node_name)
-    k8s_events.create_kubernetes_event(v1, "Node", node_name, "default", "CastNodeRotation", "Node drain completed", "castai-agent")
+    k8s_events.create_kubernetes_event(v1, "Node", node_name, "default", "CastNodeRotation", "Node drain completed",
+                                       "castai-agent")
     logging.info(f"Node {node_name} drained successfully.")
 
 
@@ -79,8 +85,14 @@ def main() -> None:
         else:
             logging.info(f"Node {node_name} is not older then {config.MIN_NODE_AGE_DAYS}. Skipping.")
 
+    # Exit the script if there are no nodes to process
+    if not critical_nodes and not non_critical_nodes:
+        logging.info(f"No nodes older than {config.MIN_NODE_AGE_DAYS} to process. Exiting.")
+        sys.exit(0)
+
     # Remove the cron job node from critical and non-critical node lists, as the cron job node should be processed last
-    critical_nodes, non_critical_nodes = node_utils.remove_cron_job_node(cron_job_node_name, critical_nodes, non_critical_nodes)
+    critical_nodes, non_critical_nodes = node_utils.remove_cron_job_node(cron_job_node_name, critical_nodes,
+                                                                         non_critical_nodes)
 
     logging.info(f"Critical nodes: {critical_nodes}")
     logging.info(f"Non-critical nodes: {non_critical_nodes}")
@@ -89,17 +101,17 @@ def main() -> None:
     for node_name in non_critical_nodes:
         process_node(v1, node_name)
 
-    #logging.info("Pausing just after processing non-critical nodes...")
-    #input()
+    # logging.info("Pausing just after processing non-critical nodes...")
+    # input()
     time.sleep(delay_wait_pending_pods)
 
     # Check for Pending pods to determine if we need to wait for new nodes
     pending_pods = v1.list_pod_for_all_namespaces(field_selector="status.phase=Pending").items
-    # iterate through pendiing_pods and log the name
+    # iterate through pending_pods and log the name
     for pod in pending_pods:
         logging.info(f"Pending pod: {pod.metadata.name}")
-    
-    new_nodes = [] # List of new nodes that have become ready
+
+    new_nodes = []  # List of new nodes that have become ready
     if len(pending_pods) > 0:
         logging.info(f"Found {len(pending_pods)} Pending pods. Waiting for new nodes to be ready...")
         # Wait for new nodes to be ready before processing critical nodes
