@@ -5,8 +5,8 @@ from datetime import datetime, timezone
 from typing import Tuple, Optional, List
 import logging
 import signal
-from kubernetes.client import V1DeleteOptions, AppsV1Api, CoreV1Api, CoreV1Event, V1ObjectMeta, V1ObjectReference, \
-    V1EventSource, V1Pod, V1Node
+from kubernetes.client import V1DeleteOptions, AppsV1Api, CoreV1Api, \
+     CoreV1Event, V1ObjectMeta, V1ObjectReference, V1EventSource, V1Pod, V1Node
 from kubernetes.client.rest import ApiException
 
 # import local modules
