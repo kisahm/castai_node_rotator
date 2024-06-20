@@ -11,30 +11,10 @@ import sys
 from kubernetes import client, config
 from kubernetes.client import V1DeleteOptions, AppsV1Api, CoreV1Api, CoreV1Event, V1ObjectMeta, V1ObjectReference, \
     V1EventSource, V1Pod, V1Node
-from kubernetes.config import load_kube_config, load_incluster_config
 from kubernetes.client.rest import ApiException
 
-# Configure logging with timestamp information
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# Load the delay time from an environment variable or use the default value
-DELAY_AFTER_READY: int = int(os.getenv("DELAY_AFTER_READY", 10))
 
-def handle_sigterm(signum, frame):
-    logging.info("Received SIGTERM. Exiting gracefully...")
-    sys.exit(0)
-
-# Register the signal handler for SIGTERM
-signal.signal(signal.SIGTERM, handle_sigterm)
-
-# Define labels or names for CastAI critical pods, either from an environment variable or a default list
-CRITICAL_WORKLOADS: List[str] = os.getenv(
-    "CRITICAL_WORKLOADS",
-    "app.kubernetes.io/name=castai-agent,app.kubernetes.io/name=castai-cluster-controller"
-).split(",")
-
-# Define the minimum number of ready nodes required before draining critical nodes
-MIN_READY_NODES: int = int(os.getenv("MIN_READY_NODES", 1))
 
 
 def create_kubernetes_event(
@@ -120,16 +100,6 @@ def remove_cron_job_node(cron_job_node_name: Optional[str], critical_nodes: List
         if cron_job_node_name in non_critical_nodes:
             non_critical_nodes.remove(cron_job_node_name)
     return critical_nodes, non_critical_nodes
-
-def load_config() -> None:
-    logging.info("Loading Kubernetes configuration...")
-    try:
-        load_incluster_config()
-        logging.info("Loaded in-cluster config.")
-    except:
-        load_kube_config()
-        logging.info("Loaded local kube config.")
-
 
 def get_cast_ai_nodes(v1: CoreV1Api) -> List[V1Node]:
     logging.info("Retrieving CAST AI managed nodes...")
