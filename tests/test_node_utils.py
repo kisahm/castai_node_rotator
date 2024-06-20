@@ -1,12 +1,17 @@
 import sys, os
 import unittest
+from unittest.mock import MagicMock
 from datetime import datetime, timedelta, timezone
-from kubernetes.client import V1Node, V1ObjectMeta
+from kubernetes.client import V1Node, V1ObjectMeta, V1Pod, V1PodList
 
 # Add src directory to the system path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
 from node_utils import is_node_older_than
+from node_utils import is_node_running_critical_pods
+
+# Mock the CRITICAL_WORKLOADS to match the tests
+CRITICAL_WORKLOADS = ["app.kubernetes.io/name=castai-agent", "app.kubernetes.io/name=castai-cluster-controller"]
 
 class TestNodeUtils(unittest.TestCase):
 
@@ -37,6 +42,50 @@ class TestNodeUtils(unittest.TestCase):
         node = V1Node(metadata=V1ObjectMeta(creation_timestamp=creation_timestamp))
         result = is_node_older_than(node, 0)
         self.assertTrue(result, "Node tested against zero days should return True")
+
+    def test_is_node_running_critical_pods_true(self):
+        # Mock the CoreV1Api instance and its list_pod_for_all_namespaces method
+        v1 = MagicMock()
+        node_name = "test-node"
+        
+        # Create a pod that matches the critical workloads
+        pod = V1Pod(metadata=V1ObjectMeta(labels={"app.kubernetes.io/name": "castai-agent"}))
+        pod_list = V1PodList(items=[pod])
+        
+        v1.list_pod_for_all_namespaces.return_value = pod_list
+
+        # Test the function
+        result = is_node_running_critical_pods(v1, node_name)
+        self.assertTrue(result, "Node running critical pod should return True")
+
+    def test_is_node_running_critical_pods_false(self):
+        # Mock the CoreV1Api instance and its list_pod_for_all_namespaces method
+        v1 = MagicMock()
+        node_name = "test-node"
+        
+        # Create a pod that does not match the critical workloads
+        pod = V1Pod(metadata=V1ObjectMeta(labels={"app.kubernetes.io/name": "non-critical-app"}))
+        pod_list = V1PodList(items=[pod])
+        
+        v1.list_pod_for_all_namespaces.return_value = pod_list
+
+        # Test the function
+        result = is_node_running_critical_pods(v1, node_name)
+        self.assertFalse(result, "Node not running critical pod should return False")
+
+    def test_is_node_running_critical_pods_empty(self):
+        # Mock the CoreV1Api instance and its list_pod_for_all_namespaces method
+        v1 = MagicMock()
+        node_name = "test-node"
+        
+        # Create an empty pod list
+        pod_list = V1PodList(items=[])
+        
+        v1.list_pod_for_all_namespaces.return_value = pod_list
+
+        # Test the function
+        result = is_node_running_critical_pods(v1, node_name)
+        self.assertFalse(result, "Node with no pods should return False")
 
 if __name__ == '__main__':
     unittest.main()

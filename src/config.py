@@ -26,6 +26,8 @@ CRON_JOB_POD_SUBSTRING = os.getenv("CRON_JOB_PREFIX", "castai-node-drainer")
 
 MIN_NODE_AGE_DAYS: int = int(os.getenv("MIN_NODE_AGE_DAYS", 7))
 
+NODE_DRAIN_TIMEOUT: int = int(os.getenv("NODE_DRAIN_TIMEOUT", 1200))
+
 def load_config() -> None:
     logging.info("Loading Kubernetes configuration...")
     try:

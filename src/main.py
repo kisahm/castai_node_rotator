@@ -34,11 +34,11 @@ def process_node(v1: CoreV1Api, node_name: str) -> None:
             time.sleep(5) #delay before getting pod status to avoid false pod status check
             pod_utils.wait_for_none_pending(v1, name, namespace)
         else:
-            logging.info(f"Breaking from check controllers loop.")
+            logging.info(f"No pod controllers with all replicas on node {node_name}.")
             break
 
     k8s_events.create_kubernetes_event(v1, "Node", node_name, "default", "CastNodeRotation", "Node drain start", "castai-agent")
-    node_utils.drain_node(v1, node_name)
+    node_utils.drain_node_with_timeout(v1, node_name, config.NODE_DRAIN_TIMEOUT)
     k8s_events.create_kubernetes_event(v1, "Node", node_name, "default", "CastNodeRotation", "Node drain completed", "castai-agent")
     logging.info(f"Node {node_name} drained successfully.")
 
