@@ -7,7 +7,9 @@ from typing import Tuple, Optional, List
 from kubernetes.client import CoreV1Api, V1Node, ApiException, V1Pod
 from config import CRITICAL_WORKLOADS, MIN_READY_NODES
 
-def remove_cron_job_node(cron_job_node_name: Optional[str], critical_nodes: List[str], non_critical_nodes: List[str]) -> Tuple[List[str], List[str]]:
+
+def remove_cron_job_node(cron_job_node_name: Optional[str], critical_nodes: List[str], non_critical_nodes: List[str]) -> \
+Tuple[List[str], List[str]]:
     """
     Removes the cron job node name from the critical and non-critical node lists.
     """
@@ -18,11 +20,13 @@ def remove_cron_job_node(cron_job_node_name: Optional[str], critical_nodes: List
             non_critical_nodes.remove(cron_job_node_name)
     return critical_nodes, non_critical_nodes
 
+
 def get_cast_ai_nodes(v1: CoreV1Api) -> List[V1Node]:
     logging.info("Retrieving CAST AI managed nodes...")
     nodes: List[V1Node] = v1.list_node(label_selector="provisioner.cast.ai/managed-by=cast.ai").items
     logging.info(f"Found {len(nodes)} CAST AI managed nodes.")
     return nodes
+
 
 def cordon_node(v1: CoreV1Api, node_name: str) -> None:
     logging.info(f"Cordoning node: {node_name}...")
@@ -37,6 +41,7 @@ def cordon_node(v1: CoreV1Api, node_name: str) -> None:
     except ApiException as e:
         logging.error(f"Error cordoning node {node_name}: {e}")
 
+
 def get_node_for_running_pod(v1: CoreV1Api, pod_name_substring: str) -> Optional[str]:
     """
     Returns the name of the node on which a pod with the given substring in its name is running.
@@ -47,6 +52,8 @@ def get_node_for_running_pod(v1: CoreV1Api, pod_name_substring: str) -> Optional
         if pod_name_substring in pod.metadata.name and pod.status.phase == "Running":
             return pod.spec.node_name
     return None
+
+
 """
 def drain_node(v1: CoreV1Api, node_name: str) -> None:
     try:
@@ -58,6 +65,8 @@ def drain_node(v1: CoreV1Api, node_name: str) -> None:
     except subprocess.CalledProcessError as e:
         logging.error(f"Error draining node {node_name}: {e}")
 """
+
+
 def drain_node_with_timeout(v1: CoreV1Api, node_name: str, timeout: int) -> None:
     try:
         logging.info(f"Draining node: {node_name} with a timeout of {timeout} seconds...")
@@ -72,6 +81,7 @@ def drain_node_with_timeout(v1: CoreV1Api, node_name: str, timeout: int) -> None
         label_node(v1, node_name, "drain-status", "failed")
         uncordon_node(v1, node_name)
 
+
 def is_node_running_critical_pods(v1: CoreV1Api, node_name: str) -> bool:
     pods: List[V1Pod] = v1.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node_name}").items
     for pod in pods:
@@ -80,6 +90,7 @@ def is_node_running_critical_pods(v1: CoreV1Api, node_name: str) -> bool:
             if pod.metadata.labels.get(label_key) == label_value:
                 return True
     return False
+
 
 def wait_for_new_nodes(v1: CoreV1Api, original_nodes: List[str]) -> List[str]:
     total_wait_cycles = os.getenv("TOTAL_WAIT_CYCLES", 18)
@@ -94,18 +105,19 @@ def wait_for_new_nodes(v1: CoreV1Api, original_nodes: List[str]) -> List[str]:
                 f"Found {len(ready_new_nodes)} new ready nodes, which meets the required {MIN_READY_NODES} new ready nodes.")
             return [node.metadata.name for node in ready_new_nodes]
         logging.info(f"Currently {len(ready_new_nodes)} new ready nodes. Waiting for new nodes to be ready...")
-        total_wait_cycles -= 1 # decrement the total_wait_cycles
+        total_wait_cycles -= 1  # decrement the total_wait_cycles
         time.sleep(10)
 
-def is_node_older_than(node: V1Node, days: int) -> bool:
 
+def is_node_older_than(node: V1Node, days: int) -> bool:
     if days == 0:  # Node is always stale if zero days
         return True
-    
+
     creation_timestamp = node.metadata.creation_timestamp
     age = datetime.now(timezone.utc) - creation_timestamp
     return age > timedelta(days=days + 1)
 
+  
 def label_node(v1: CoreV1Api, node_name: str, label_key: str, label_value: str) -> None:
     body = {
         "metadata": {
@@ -120,6 +132,7 @@ def label_node(v1: CoreV1Api, node_name: str, label_key: str, label_value: str) 
     except ApiException as e:
         logging.error(f"Error labeling node {node_name}: {e}")
 
+        
 def uncordon_node(v1: CoreV1Api, node_name: str) -> None:
     logging.info(f"Uncordoning node: {node_name}...")
     body = {
