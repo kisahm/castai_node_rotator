@@ -31,5 +31,12 @@ class TestNodeUtils(unittest.TestCase):
         result = is_node_older_than(node, 7)
         self.assertFalse(result, "Node exactly 7 days old should return False")
 
+    def test_is_node_older_than_zero_days(self):
+        # Create a node with a creation timestamp of today
+        creation_timestamp = datetime.now(timezone.utc) - timedelta(hours=1)
+        node = V1Node(metadata=V1ObjectMeta(creation_timestamp=creation_timestamp))
+        result = is_node_older_than(node, 0)
+        self.assertTrue(result, "Node tested against zero days should return True")
+
 if __name__ == '__main__':
     unittest.main()

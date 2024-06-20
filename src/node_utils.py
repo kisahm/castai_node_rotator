@@ -84,6 +84,10 @@ def wait_for_new_nodes(v1: CoreV1Api, original_nodes: List[str]) -> List[str]:
         time.sleep(10)
 
 def is_node_older_than(node: V1Node, days: int) -> bool:
+
+    if days == 0:  # Node is always stale if zero days
+        return True
+    
     creation_timestamp = node.metadata.creation_timestamp
     age = datetime.now(timezone.utc) - creation_timestamp
     logging.error(f"Node age: {age}")
