@@ -24,13 +24,8 @@ def process_node(v1: CoreV1Api, node_name: str) -> None:
     k8s_events.create_kubernetes_event(v1, "Node", node_name, "default", "CastNodeRotation", "Node cordon init", "castai-agent")
     node_utils.cordon_node(v1, node_name)
 
-    # The check_controller_replicas function is used to identify if all replicas of a controller 
-    # are running on a single node. It returns the controller’s kind, name, namespace, and the 
-    # list of pods if such a controller is found. If no such controller is found, it returns None values. 
-    # This function is useful for scenarios where you need to ensure that controller replicas are 
-    # distributed across different nodes to avoid single points of failure.
     while True:
-        kind, name, namespace, controller_pods = pod_utils.check_controller_replicas(v1, node_name)
+        kind, name, namespace, controller_pods = pod_utils.check_controller_replicas(v1, node_name) #check if any controller is "all in" on the node
         if kind and name and namespace and controller_pods:
             # we want to evict the first pod in the list of controller_pods (not all of them)
             pod = controller_pods[0]
@@ -53,9 +48,9 @@ def main() -> None:
     logging.info("Starting node rotator...")
     logging.info("************************************************")
 
-    # check an environment variable for startup sleep time, default 20 seconds
-    startup_sleep_time = int(os.getenv("STARTUP_SLEEP_TIME", 20))
-    delay_wait_pending_pods = int(os.getenv("DELAY_WAIT_PENDING_PODS", 20))
+    startup_sleep_time = config.STARTUP_SLEEP_TIME
+    delay_wait_pending_pods = config.DELAY_WAIT_PENDING_PODS
+    cron_job_pod_substring = config.CRON_JOB_POD_SUBSTRING
 
     logging.info(f"Sleeping for {startup_sleep_time} seconds before starting node rotation.")
     time.sleep(startup_sleep_time)
@@ -64,7 +59,6 @@ def main() -> None:
     v1 = CoreV1Api()
 
     # Get the node name for the running cron job pod
-    cron_job_pod_substring = "castai-node-drainer"  # Replace with the desired substring
     cron_job_node_name = node_utils.get_node_for_running_pod(v1, cron_job_pod_substring)
     logging.info(f" cronjob node {cron_job_node_name}")
 
@@ -76,10 +70,14 @@ def main() -> None:
 
     # Separate critical and non-critical nodes
     for node_name in original_nodes:
-        if node_utils.is_node_running_critical_pods(v1, node_name):
-            critical_nodes.append(node_name)
+        node = v1.read_node(node_name)
+        if node_utils.is_node_older_than(node, config.MIN_NODE_AGE_DAYS):
+            if node_utils.is_node_running_critical_pods(v1, node_name):
+                critical_nodes.append(node_name)
+            else:
+                non_critical_nodes.append(node_name)
         else:
-            non_critical_nodes.append(node_name)
+            logging.info(f"Node {node_name} is not older then {config.MIN_NODE_AGE_DAYS}. Skipping.")
 
     # Remove the cron job node from critical and non-critical node lists, as the cron job node should be processed last
     critical_nodes, non_critical_nodes = node_utils.remove_cron_job_node(cron_job_node_name, critical_nodes, non_critical_nodes)

@@ -1,4 +1,5 @@
 import time
+from datetime import datetime, timezone, timedelta
 import os
 import logging
 import subprocess
@@ -81,3 +82,11 @@ def wait_for_new_nodes(v1: CoreV1Api, original_nodes: List[str]) -> List[str]:
         logging.info(f"Currently {len(ready_new_nodes)} new ready nodes. Waiting for new nodes to be ready...")
         total_wait_cycles -= 1 # decrement the total_wait_cycles
         time.sleep(10)
+
+def is_node_older_than(node: V1Node, days: int) -> bool:
+    creation_timestamp = node.metadata.creation_timestamp
+    age = datetime.now(timezone.utc) - creation_timestamp
+    logging.error(f"Node age: {age}")
+    logging.error(f"delta days: {timedelta(days=days)}")
+    logging.error(f"age > timedelta(days=days + 1): {age > timedelta(days=days +1)}")
+    return age > timedelta(days=days + 1)

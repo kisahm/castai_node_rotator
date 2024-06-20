@@ -15,8 +15,16 @@ CRITICAL_WORKLOADS: List[str] = os.getenv(
     "app.kubernetes.io/name=castai-agent,app.kubernetes.io/name=castai-cluster-controller"
 ).split(",")
 
+# check an environment variable for startup sleep time, default 20 seconds
+STARTUP_SLEEP_TIME = int(os.getenv("STARTUP_SLEEP_TIME", 20))
+DELAY_WAIT_PENDING_PODS = int(os.getenv("DELAY_WAIT_PENDING_PODS", 20))
+
 # Define the minimum number of ready nodes required before draining critical nodes
 MIN_READY_NODES: int = int(os.getenv("MIN_READY_NODES", 1))
+
+CRON_JOB_POD_SUBSTRING = os.getenv("CRON_JOB_PREFIX", "castai-node-drainer")
+
+MIN_NODE_AGE_DAYS: int = int(os.getenv("MIN_NODE_AGE_DAYS", 7))
 
 def load_config() -> None:
     logging.info("Loading Kubernetes configuration...")
