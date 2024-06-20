@@ -14,4 +14,4 @@ RUN chmod +x ./kubectl
 RUN mv ./kubectl /usr/local/bin
 RUN pip3 install -r requirements.txt
 
-CMD ["python", "src.py"]
+CMD ["python", "main.py"]
