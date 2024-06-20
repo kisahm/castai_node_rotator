@@ -54,6 +54,7 @@ def get_node_for_running_pod(v1: CoreV1Api, pod_name_substring: str) -> Optional
     return None
 
 
+"""
 def drain_node(v1: CoreV1Api, node_name: str) -> None:
     try:
         logging.info(f"Draining node: {node_name}...")
@@ -63,6 +64,22 @@ def drain_node(v1: CoreV1Api, node_name: str) -> None:
         logging.info(f"Node {node_name} drained.")
     except subprocess.CalledProcessError as e:
         logging.error(f"Error draining node {node_name}: {e}")
+"""
+
+
+def drain_node_with_timeout(v1: CoreV1Api, node_name: str, timeout: int) -> None:
+    try:
+        logging.info(f"Draining node: {node_name} with a timeout of {timeout} seconds...")
+        command = ["kubectl", "drain", node_name, "--ignore-daemonsets", "--delete-emptydir-data"]
+        result = subprocess.run(command, check=True, text=True, capture_output=True, timeout=timeout)
+        logging.info(f"{result}.")
+        logging.info(f"Node {node_name} drained.")
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Error draining node {node_name}: {e}")
+    except subprocess.TimeoutExpired:
+        logging.error(f"Draining node {node_name} timed out after {timeout} seconds.")
+        label_node(v1, node_name, "drain-status", "failed")
+        uncordon_node(v1, node_name)
 
 
 def is_node_running_critical_pods(v1: CoreV1Api, node_name: str) -> bool:
@@ -98,7 +115,33 @@ def is_node_older_than(node: V1Node, days: int) -> bool:
 
     creation_timestamp = node.metadata.creation_timestamp
     age = datetime.now(timezone.utc) - creation_timestamp
-    logging.error(f"Node age: {age}")
-    logging.error(f"delta days: {timedelta(days=days)}")
-    logging.error(f"age > timedelta(days=days + 1): {age > timedelta(days=days + 1)}")
     return age > timedelta(days=days + 1)
+
+  
+def label_node(v1: CoreV1Api, node_name: str, label_key: str, label_value: str) -> None:
+    body = {
+        "metadata": {
+            "labels": {
+                label_key: label_value
+            }
+        }
+    }
+    try:
+        v1.patch_node(node_name, body)
+        logging.info(f"Labeled node {node_name} with {label_key}={label_value}.")
+    except ApiException as e:
+        logging.error(f"Error labeling node {node_name}: {e}")
+
+        
+def uncordon_node(v1: CoreV1Api, node_name: str) -> None:
+    logging.info(f"Uncordoning node: {node_name}...")
+    body = {
+        "spec": {
+            "unschedulable": False
+        }
+    }
+    try:
+        v1.patch_node(node_name, body)
+        logging.info(f"Node {node_name} uncordoned.")
+    except ApiException as e:
+        logging.error(f"Error uncordoning node {node_name}: {e}")
