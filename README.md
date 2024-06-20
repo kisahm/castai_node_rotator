@@ -8,17 +8,20 @@ This project contains a Python script to rotate CAST AI managed nodes in a Kuber
 - Check if all replicas of any controller reside on a single node.
 - Evict one replica to another node if necessary, ensuring it becomes healthy and serves traffic.
 - Drain nodes by safely evicting all remaining pods.
-
-(Next):
+- Drain timeout configurable
+- Old nodes configurable in number of days
 - Log movements in Kubernetes events.
 - Package the script using Docker and deploy as a Kubernetes CronJob.
+
+(Next):
+- Unit test coverage
 - Create e2e tests to ensure the script works as expected.
 
 ## Getting Started
 
 ### Prerequisites
 
-- Python 3.9 or higher
+- Python 3.11 or higher
 - Docker
 - Kubernetes cluster
 - kubectl configured to interact with your Kubernetes cluster
