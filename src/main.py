@@ -88,7 +88,7 @@ def main() -> None:
     # Exit the script if there are no nodes to process
     if not critical_nodes and not non_critical_nodes:
         logging.info(f"No nodes older than {config.MIN_NODE_AGE_DAYS} to process. Exiting.")
-        exit(0)
+        sys.exit(0)
 
     # Remove the cron job node from critical and non-critical node lists, as the cron job node should be processed last
     critical_nodes, non_critical_nodes = node_utils.remove_cron_job_node(cron_job_node_name, critical_nodes,
