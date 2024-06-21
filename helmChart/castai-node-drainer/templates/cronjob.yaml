@@ -26,7 +26,6 @@ spec:
           containers:
           - name: castai-node-drainer
             image: "{{ .Values.container.image }}:{{ .Values.container.tag }}"
-            command: [python, src.py]
             env:
             - name: DELAY_AFTER_READY
               value: "{{ .Values.env.DELAY_AFTER_READY }}"
@@ -40,6 +39,10 @@ spec:
               value: "{{ .Values.env.STARTUP_SLEEP_TIME }}"
             - name: DELAY_WAIT_PENDING_PODS
               value: "{{ .Values.env.DELAY_WAIT_PENDING_PODS }}"
+            - name: MIN_NODE_AGE_DAYS
+              value: "{{ .Values.env.MIN_NODE_AGE_DAYS }}"
+            - name: NODE_DRAIN_TIMEOUT
+              value: "{{ .Values.env.NODE_DRAIN_TIMEOUT }}"
             resources:
               limits:
                 memory: "{{ .Values.container.resources.limits.memory }}"

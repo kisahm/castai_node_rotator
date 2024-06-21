@@ -41,3 +41,5 @@ env:
   STARTUP_SLEEP_TIME: "30"
   # The time in seconds to delay after processing non-critical nodes and before processing critical nodes
   DELAY_WAIT_PENDING_PODS: "20"
+  MIN_NODE_AGE_DAYS : "7"
+  NODE_DRAIN_TIMEOUT : "1200"
