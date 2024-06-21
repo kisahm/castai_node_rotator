@@ -27,7 +27,6 @@ spec:
           containers:
           - name: castai-node-drainer
             image: ronakpatildocker/castai-node-rotate:latest
-            command: [python, src.py]
             env:
             - name: DELAY_AFTER_READY
               value: "20"
@@ -41,6 +40,10 @@ spec:
               value: "30"
             - name: DELAY_WAIT_PENDING_PODS
               value: "30"
+            - name: MIN_NODE_AGE_DAYS
+              value: "7"
+            - name: NODE_DRAIN_TIMEOUT 
+              value: "1200"
             resources:
               limits:
                 memory: 500Mi
