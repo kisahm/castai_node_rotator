@@ -1,7 +1,7 @@
 default: release
 
 PLATFORMS = linux/amd64,linux/arm64
-APP= "ronakpatildocker/castai-node-rotate"
+APP= "castai/castai-node-rotate"
 TAG_LATEST=$(APP):latest
 TAG_VERSION=$(APP):v0.1
 

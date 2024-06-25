@@ -26,7 +26,7 @@ spec:
             kubernetes.azure.com/mode: system
           containers:
           - name: castai-node-drainer
-            image: ronakpatildocker/castai-node-rotate:latest
+            image: castai/castai-node-rotate:latest
             env:
             - name: DELAY_AFTER_READY
               value: "20"

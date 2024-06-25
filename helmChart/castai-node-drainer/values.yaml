@@ -14,7 +14,7 @@ cronjob:
 # Container configuration
 container:
   # The container image to use
-  image: ronakpatildocker/castai-node-rotate
+  image: castai/castai-node-rotate
   # The tag of the container image
   tag: latest
   # Resource limits and requests for the container

@@ -100,7 +100,7 @@ resource "helm_release" "castai-node-drainer" {
 
   set {
     name  = "container.image"
-    value = "ronakpatildocker/castai-node-rotate"
+    value = "castai/castai-node-rotate"
   }
 
   # Add any other values as needed
