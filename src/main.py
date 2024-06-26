@@ -41,13 +41,15 @@ def process_node(v1: CoreV1Api, node_name: str) -> None:
             logging.info(f"No pod controllers with all replicas on node {node_name}.")
             break
 
-
     k8s_events.create_kubernetes_event(v1, "Node", node_name, "default", "CastNodeRotation", "Node drain start", "castai-agent")
-    node_utils.drain_node_with_timeout(v1, node_name, config.NODE_DRAIN_TIMEOUT)
-    k8s_events.create_kubernetes_event(v1, "Node", node_name, "default", "CastNodeRotation", "Node drain completed", "castai-agent")
-
-    logging.info(f"Node {node_name} drained successfully.")
-
+    try:
+        node_utils.drain_node_with_timeout(v1, node_name, config.NODE_DRAIN_TIMEOUT)
+        k8s_events.create_kubernetes_event(v1, "Node", node_name, "default", "CastNodeRotation", "Node drain completed", "castai-agent")
+        logging.info(f"Node {node_name} drained successfully.")
+    except Exception as e:
+        logging.error(f"Error draining node {node_name}: {e}")
+        k8s_events.create_kubernetes_event(v1, "Node", node_name, "default", "CastNodeRotation", "Node drain exception caught", "castai-agent")
+    
 
 def main() -> None:
     logging.info("************************************************")
