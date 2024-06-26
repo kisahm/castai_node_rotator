@@ -6,7 +6,7 @@ import subprocess
 from typing import Tuple, Optional, List
 from kubernetes.client import CoreV1Api, V1Node, ApiException, V1Pod
 from config import CRITICAL_WORKLOADS, MIN_READY_NODES
-
+from pod_utils import dump_pods_on_node 
 
 def remove_cron_job_node(cron_job_node_name: Optional[str], critical_nodes: List[str], non_critical_nodes: List[str]) -> \
 Tuple[List[str], List[str]]:
@@ -53,33 +53,25 @@ def get_node_for_running_pod(v1: CoreV1Api, pod_name_substring: str) -> Optional
             return pod.spec.node_name
     return None
 
-
-"""
-def drain_node(v1: CoreV1Api, node_name: str) -> None:
-    try:
-        logging.info(f"Draining node: {node_name}...")
-        command = ["kubectl", "drain", node_name, "--ignore-daemonsets", "--delete-emptydir-data"]
-        result = subprocess.run(command, check=True, text=True, capture_output=True)
-        logging.info(f"{result}.")
-        logging.info(f"Node {node_name} drained.")
-    except subprocess.CalledProcessError as e:
-        logging.error(f"Error draining node {node_name}: {e}")
-"""
-
-
-def drain_node_with_timeout(v1: CoreV1Api, node_name: str, timeout: int) -> None:
+def drain_node_with_timeout(v1: CoreV1Api, node_name: str, timeout: int) -> Optional[List[V1Pod]]:
     try:
         logging.info(f"Draining node: {node_name} with a timeout of {timeout} seconds...")
         command = ["kubectl", "drain", node_name, "--ignore-daemonsets", "--delete-emptydir-data"]
         result = subprocess.run(command, check=True, text=True, capture_output=True, timeout=timeout)
         logging.info(f"{result}.")
         logging.info(f"Node {node_name} drained.")
-    except subprocess.CalledProcessError as e:
-        logging.error(f"Error draining node {node_name}: {e}")
+        return None
     except subprocess.TimeoutExpired:
         logging.error(f"Draining node {node_name} timed out after {timeout} seconds.")
+        pods = dump_pods_on_node(v1, node_name)
+        if pods:
+            logging.info(f"Found {len(pods)} pods on node {node_name} that were not drained.")
         label_node(v1, node_name, "drain-status", "failed")
         uncordon_node(v1, node_name)
+        return pods
+    except Exception as e:
+        logging.error(f"Error draining node {node_name}: {e}")
+        raise
 
 
 def is_node_running_critical_pods(v1: CoreV1Api, node_name: str) -> bool:
