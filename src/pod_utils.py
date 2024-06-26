@@ -4,6 +4,22 @@ from typing import Tuple, Optional, List
 from kubernetes.client import V1DeleteOptions, CoreV1Api, CoreV1Event, V1ObjectMeta, V1ObjectReference, V1Pod
 from kubernetes.client.rest import ApiException
 
+
+def dump_pods_on_node(v1: CoreV1Api, node_name: str) -> None:
+    logging.info(f"Dumping pods on node: {node_name}")
+    try:
+        pods = v1.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node_name}").items
+        if not pods:
+            logging.error(f"No pods found on node {node_name}")
+            return None
+        else:
+            for pod in pods:
+                logging.error(f"Pod {pod.metadata.name} in namespace {pod.metadata.namespace} is on node {node_name}")
+            return pods
+    except Exception as e:
+        logging.error(f"Error dumping pods on node {node_name}: {e}")
+        return None
+
 def evict_pod(v1: CoreV1Api, pod: V1Pod) -> None:
     pod_name: str = pod.metadata.name
     namespace: str = pod.metadata.namespace
