@@ -1,13 +1,9 @@
-import os
 import sys
 import time
-from datetime import datetime, timezone
-from typing import Tuple, Optional, List
+from typing import List
 import logging
 import signal
-from kubernetes.client import V1DeleteOptions, AppsV1Api, CoreV1Api, \
-     CoreV1Event, V1ObjectMeta, V1ObjectReference, V1EventSource, V1Pod, V1Node
-from kubernetes.client.rest import ApiException
+from kubernetes.client import CoreV1Api
 
 # import local modules
 import config
@@ -18,7 +14,6 @@ import sig_utils
 
 # Register the signal handler for SIGTERM
 signal.signal(signal.SIGTERM, sig_utils.handle_sigterm)
-
 
 def process_node(v1: CoreV1Api, node_name: str) -> None:
     logging.info(f"Processing node: {node_name}...")
