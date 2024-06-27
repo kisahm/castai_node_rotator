@@ -2,13 +2,13 @@ apiVersion: v1
 entries:
   castai-node-drainer:
   - apiVersion: v2
-    appVersion: 1.16.0
-    created: "2024-06-13T17:22:55.725685+05:30"
+    appVersion: 1.17.0
+    created: "2024-06-26T16:29:18.071292-04:00"
     description: A Helm chart for Kubernetes
-    digest: 464c60cc315c248fd5cbfbc04ed2b42f828704165a51c1bfcc38f1d3721b3f70
+    digest: 0acd808c340af27293bee8e08b4f1ce065a1f8cd95a7cd9d2fd7f515242edb33
     name: castai-node-drainer
     type: application
     urls:
-    - castai-node-drainer-0.1.0.tgz
-    version: 0.1.0
-generated: "2024-06-13T17:22:55.725337+05:30"
+    - castai-node-drainer-0.1.1.tgz
+    version: 0.1.1
+generated: "2024-06-26T16:29:18.069832-04:00"
