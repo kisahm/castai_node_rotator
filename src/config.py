@@ -41,6 +41,8 @@ MIN_NODE_AGE_DAYS: int = get_env_int("MIN_NODE_AGE_DAYS", 7)
 
 NODE_DRAIN_TIMEOUT: int = get_env_int("NODE_DRAIN_TIMEOUT", 1200)
 
+LAST_RUN: str = os.getenv("LAST_RUN", "")
+
 
 def load_config() -> None:
     logging.info("Loading Kubernetes configuration...")

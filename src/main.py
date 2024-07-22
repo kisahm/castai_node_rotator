@@ -1,5 +1,6 @@
 import sys
 import time
+import datetime
 from typing import List
 import logging
 import signal
@@ -15,7 +16,15 @@ import sig_utils
 # Register the signal handler for SIGTERM
 signal.signal(signal.SIGTERM, sig_utils.handle_sigterm)
 
+def validate_lastrun():
+    if config.LAST_RUN: 
+        if datetime.datetime.now().strftime('%H:%M:%S') > datetime.datetime.now().strptime(config.LAST_RUN, "%H:%M:%S").strftime('%H:%M:%S'):
+            logging.info(f"Last run archived. Exiting...")
+            exit(0)
+
 def process_node(v1: CoreV1Api, node_name: str) -> None:
+    validate_lastrun()
+
     logging.info(f"Processing node: {node_name}...")
 
     k8s_events.create_kubernetes_event(v1, "Node", node_name, "default", "CastNodeRotation", "Node cordon init",
@@ -54,6 +63,11 @@ def main() -> None:
     startup_sleep_time = config.STARTUP_SLEEP_TIME
     delay_wait_pending_pods = config.DELAY_WAIT_PENDING_PODS
     cron_job_pod_substring = config.CRON_JOB_POD_SUBSTRING
+
+    logging.info("Current timezone: %s", time.localtime().tm_zone)
+    if config.LAST_RUN:
+        logging.info("Last run is set to: %s", config.LAST_RUN)
+    validate_lastrun()
 
     logging.info(f"Sleeping for {startup_sleep_time} seconds before starting node rotation.")
     time.sleep(startup_sleep_time)

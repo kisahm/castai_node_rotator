@@ -27,6 +27,8 @@ container:
       cpu: 50m
       memory: 100Mi
 
+nodeSelector: {}
+
 # Environment variables for the container
 env:
   # The delay in seconds after a pod is ready before performing any action
@@ -43,3 +45,5 @@ env:
   DELAY_WAIT_PENDING_PODS: "20"
   MIN_NODE_AGE_DAYS : "7"
   NODE_DRAIN_TIMEOUT : "1200"
+  # Last run for the day. (Can be used to limit maintenance windows)
+  LAST_RUN: "23:59:59"

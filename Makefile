@@ -3,7 +3,7 @@ default: release
 PLATFORMS = linux/amd64,linux/arm64
 APP= "castai/castai-node-rotate"
 TAG_LATEST=$(APP):latest
-TAG_VERSION=$(APP):v0.2
+TAG_VERSION=$(APP):v0.2.1
 
 
 pull:

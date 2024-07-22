@@ -21,8 +21,10 @@ spec:
             operator: "Equal"
             value: "true"
             effect: "NoSchedule"
+          {{- with .Values.nodeSelector }}
           nodeSelector:
-            kubernetes.azure.com/mode: system
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           containers:
           - name: castai-node-drainer
             image: "{{ .Values.container.image }}:{{ .Values.container.tag }}"
@@ -43,6 +45,8 @@ spec:
               value: "{{ .Values.env.MIN_NODE_AGE_DAYS }}"
             - name: NODE_DRAIN_TIMEOUT
               value: "{{ .Values.env.NODE_DRAIN_TIMEOUT }}"
+            - name: LAST_RUN
+              value: "{{ .Values.env.LAST_RUN }}"
             resources:
               limits:
                 memory: "{{ .Values.container.resources.limits.memory }}"
